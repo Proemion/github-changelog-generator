@@ -95,7 +95,7 @@ module GitHubChangelogGenerator
     # Filters issues and pull requests based on, respectively, `closed_at` and `merged_at`
     #  timestamp fields.
     #
-    # @return [Array] filtered issues and pull requests
+    # @return [Array] filtered issues and pull requests.
     def filter_issues_for_tags(newer_tag, older_tag)
       filtered_pull_requests = delete_by_time(@pull_requests, "merged_at", older_tag, newer_tag)
       filtered_issues        = delete_by_time(@issues, "closed_at", older_tag, newer_tag)
