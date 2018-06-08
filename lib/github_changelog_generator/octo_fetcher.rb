@@ -37,7 +37,6 @@ module GitHubChangelogGenerator
         @cache_log  = @options.fetch(:cache_log) { File.join(Dir.tmpdir, "github-changelog-logger.log") }
         init_cache
       end
-      @github_token = fetch_github_token
 
       @request_options               = { per_page: PER_PAGE_NUMBER }
       configure_octokit_ssl
@@ -344,8 +343,9 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
         Helper.log.warn GH_RATE_LIMIT_EXCEEDED_MSG
         Helper.log.warn @client.rate_limit
       end
-      if @client.rate_limit.remaining == 0
-        Helper.log.warn("Exausted retries, attempting to make a new client")
+      if @client.rate_limit.remaining <= 0
+        remaining = @client.rate_limit.remaining
+        Helper.log.info("Exausted retries, remaining=#{remaining}; attempting to make a new client")
         @client = Octokit::Client.new(github_options)
       end
     end
@@ -375,11 +375,15 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
 
       Helper.log.warn NO_TOKEN_PROVIDED unless env_var
 
-      i = @token_idx
-      Helper.log.info "[OLD] Using token at index: #{i}"
-      @token_idx = i + 1
-      
-      env_var.split(',')[i]
+      token = env_var.split(',')[@token_idx]
+      if token
+        Helper.log.warn "[OLD] Using token[#{@token_idx}]=#{token[0..5]}***********************************"
+        @token_idx = @token_idx + 1
+      else
+        sys_abort("No more github tokens to try, exiting")
+      end
+
+      token
     end
 
     # @return [String] helper to return Github "user/project"
