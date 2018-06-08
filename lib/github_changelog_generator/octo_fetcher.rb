@@ -31,6 +31,7 @@ module GitHubChangelogGenerator
       @project      = @options[:project]
       @since        = @options[:since]
       @http_cache   = @options[:http_cache]
+      @token_idx    = 0
       if @http_cache
         @cache_file = @options.fetch(:cache_file) { File.join(Dir.tmpdir, "github-changelog-http-cache") }
         @cache_log  = @options.fetch(:cache_log) { File.join(Dir.tmpdir, "github-changelog-logger.log") }
@@ -39,18 +40,22 @@ module GitHubChangelogGenerator
       @github_token = fetch_github_token
 
       @request_options               = { per_page: PER_PAGE_NUMBER }
-      @github_options                = {}
-      @github_options[:access_token] = @github_token unless @github_token.nil?
-      @github_options[:api_endpoint] = @options[:github_endpoint] unless @options[:github_endpoint].nil?
-
       configure_octokit_ssl
-
-      @client = Octokit::Client.new(@github_options)
+      @client = Octokit::Client.new(github_options)
     end
 
     def configure_octokit_ssl
       ca_file = @options[:ssl_ca_file] || ENV["SSL_CA_FILE"] || File.expand_path("../ssl_certs/cacert.pem", __FILE__)
       Octokit.connection_options = { ssl: { ca_file: ca_file } }
+    end
+
+    def github_options
+      result = {}
+      github_token = fetch_github_token
+      result[:access_token] = github_token if github_token
+      endpoint = @options[:github_endpoint]
+      result[:api_endpoint] = endpoint if endpoint
+      result
     end
 
     def init_cache
@@ -339,6 +344,10 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
         Helper.log.warn GH_RATE_LIMIT_EXCEEDED_MSG
         Helper.log.warn @client.rate_limit
       end
+      if @client.rate_limit.remaining == 0
+        Helper.log.warn("Exausted retries, attempting to make a new client")
+        @client = Octokit::Client.new(github_options)
+      end
     end
 
     def sys_abort(msg)
@@ -366,7 +375,11 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
 
       Helper.log.warn NO_TOKEN_PROVIDED unless env_var
 
-      env_var
+      i = @token_idx
+      Helper.log.info "[OLD] Using token at index: #{i}"
+      @token_idx = i + 1
+      
+      env_var.split(',')[i]
     end
 
     # @return [String] helper to return Github "user/project"
