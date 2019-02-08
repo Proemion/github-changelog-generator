@@ -11,7 +11,7 @@ module GitHubChangelogGenerator
   class OctoFetcher
     PER_PAGE_NUMBER   = 100
     MAX_THREAD_NUMBER = 25
-    MAX_FORBIDDEN_RETRIES = 100
+    MAX_OCTOKIT_RETRIES = 100
     CHANGELOG_GITHUB_TOKEN = "CHANGELOG_GITHUB_TOKEN"
     GH_RATE_LIMIT_EXCEEDED_MSG = "Warning: Can't finish operation: GitHub API rate limit exceeded, change log may be " \
     "missing some issues. You can limit the number of issues fetched using the `--max-issues NUM` argument."
@@ -314,7 +314,10 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
       sys_abort("The repository has moved, please update your configuration")
     rescue Octokit::Forbidden => e
       Helper.log.error("#{e.class}: #{e.message}")
-      sys_abort("Exceeded retry limit")
+      sys_abort("Forbidden: exceeded retry limit")
+    rescue Octokit::BadGateway => e
+      Helper.log.error("#{e.class}: #{e.message}")
+      sys_abort("BadGateway: exceeded retry limit")
     rescue Octokit::Unauthorized => e
       Helper.log.error("#{e.class}: #{e.message}")
       sys_abort("Error: wrong GitHub token")
@@ -323,8 +326,8 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
     # Exponential backoff
     def retry_options
       {
-        on: [Octokit::Forbidden],
-        tries: MAX_FORBIDDEN_RETRIES,
+        on: [Octokit::Forbidden, Octokit::BadGateway],
+        tries: MAX_OCTOKIT_RETRIES,
         base_interval: sleep_base_interval,
         multiplier: 1.0,
         rand_factor: 0.0,
@@ -373,10 +376,10 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
     def fetch_github_token
       env_var = @options[:token] ? @options[:token] : (ENV.fetch CHANGELOG_GITHUB_TOKEN, nil)
 
-      token = nil
+      token = env_var
       if env_var.nil?
         Helper.log.warn NO_TOKEN_PROVIDED
-      else
+      elsif env_var.include? ","
         token = env_var.split(',')[@token_idx]
         if token
           Helper.log.warn "[OLD] Using token[#{@token_idx}]=#{token[0..5]}***********************************"
