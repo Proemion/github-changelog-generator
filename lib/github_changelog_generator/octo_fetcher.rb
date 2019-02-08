@@ -373,14 +373,17 @@ Make sure, that you push tags to remote repo via 'git push --tags'"
     def fetch_github_token
       env_var = @options[:token] ? @options[:token] : (ENV.fetch CHANGELOG_GITHUB_TOKEN, nil)
 
-      Helper.log.warn NO_TOKEN_PROVIDED unless env_var
-
-      token = env_var.split(',')[@token_idx]
-      if token
-        Helper.log.warn "[OLD] Using token[#{@token_idx}]=#{token[0..5]}***********************************"
-        @token_idx = @token_idx + 1
+      token = nil
+      if env_var.nil?
+        Helper.log.warn NO_TOKEN_PROVIDED
       else
-        sys_abort("No more github tokens to try, exiting")
+        token = env_var.split(',')[@token_idx]
+        if token
+          Helper.log.warn "[OLD] Using token[#{@token_idx}]=#{token[0..5]}***********************************"
+          @token_idx = @token_idx + 1
+        else
+          sys_abort("No more github tokens to try, exiting")
+        end
       end
 
       token
