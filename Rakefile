@@ -17,4 +17,4 @@ task :update_ssl_ca_file do
 end
 
 task checks: %i[rubocop rspec]
-task default: %i[rubocop rspec]
+task default: %i[rspec]
